@@ -1,0 +1,6 @@
+auth_info/
+settings.json
+activity.json
+node_modules/
+.env
+npm-debug.log
