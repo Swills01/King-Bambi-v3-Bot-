@@ -1,3 +1,4 @@
+
 const fs = require('fs');
 const path = require('path');
 
@@ -24,7 +25,7 @@ function getSetting(key, defaultValue = 'on') {
 
 module.exports = {
     name: 'reaction',
-    description: 'Toggle automatic context-aware reactions for groups, channels & status (Admins & Creator)',
+    description: 'Toggle automatic context-aware reactions for groups and channels (Admins & Creator)',
     async execute(sock, m, from, args, isOwner) {
         let isAdmin = isOwner;
         if (from.endsWith('@g.us') && !isOwner) {
@@ -45,14 +46,15 @@ module.exports = {
 
         if (!action || (action !== 'on' && action !== 'off')) {
             return sock.sendMessage(from, { 
-                text: `🤖 *Auto Reaction Status (Groups, Channels & Status):* *${currentStatus}*\n\n*Usage:* \`!reaction on\` or \`!reaction off\`` 
+                text: `🤖 *Auto Reaction (Groups & Channels):* *${currentStatus}*\n\n*Usage:* \`!reaction on\` or \`!reaction off\`` 
             }, { quoted: m });
         }
 
         updateSetting('autoReaction', action);
 
         await sock.sendMessage(from, { 
-            text: `✅ Auto reactions for groups, channels, and status have been turned *${action.toUpperCase()}* successfully!` 
+            text: `✅ Auto reactions for groups and channels have been turned *${action.toUpperCase()}* successfully!` 
         }, { quoted: m });
     }
 };
+

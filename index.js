@@ -1,10 +1,10 @@
+
 const fs = require('fs');
 const path = require('path');
 require('dotenv').config();
 const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, Browsers } = require('@whiskeysockets/baileys');
 const { Boom } = require('@hapi/boom');
 const pino = require('pino');
-const readline = require('readline');
 const { getMode } = require('./utils/mode');
 const { handleGameMessage } = require('./utils/gameManager');
 
@@ -33,9 +33,6 @@ process.on('unhandledRejection', (reason, promise) => {
     console.error('🔥 [CRASH REPORT - UNHANDLED REJECTION] At Promise:', promise, 'Reason:', reason);
 });
 
-const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-const question = (text) => new Promise((resolve) => rl.question(text, resolve));
-
 const spamTracker = {};
 
 function getGlobalSettings() {
@@ -45,25 +42,30 @@ function getGlobalSettings() {
             const data = JSON.parse(fs.readFileSync(settingsPath));
             return {
                 autoViewStatus: data.autoViewStatus !== undefined ? data.autoViewStatus : 'on',
-                autoReaction: data.autoReaction !== undefined ? data.autoReaction : 'on'
+                autoReaction: data.autoReaction !== undefined ? data.autoReaction : 'on',
+                statusReaction: data.statusReaction !== undefined ? data.statusReaction : 'off'
             };
         } catch (e) {
             console.error('🔥 [SETTINGS ERROR] Failed to parse settings.json:', e);
         }
     }
-    return { autoViewStatus: 'on', autoReaction: 'on' };
+    return { autoViewStatus: 'on', autoReaction: 'on', statusReaction: 'off' };
 }
 
 function getContextEmoji(text = '') {
     const lower = text.toLowerCase();
+    
+    // Custom keyword matching for statuses and messages
     if (/(lol|lmao|funny|haha|😂|🤣|giggle|joke|comedy)/i.test(lower)) return '😂';
     if (/(congrats|congratulations|welldone|bravo|party|🎉|🎈|win|victory|success)/i.test(lower)) return '🥳';
     if (/(sad|sorry|rip|pain|crying|😭|😢|pity)/i.test(lower)) return '😢';
     if (/(love|heart|babe|sweet|❤️|😍|kiss)/i.test(lower)) return '❤️';
     if (/(fire|lit|amazing|cool|🔥|awesome|best)/i.test(lower)) return '🔥';
     if (/(wow|omg|shock|damn|surprised|😮)/i.test(lower)) return '😮';
+    if (/(money|cash|rich|wealth|naira|dollar|lagos)/i.test(lower)) return '💰';
     
-    const defaults = ['👍', '🔥', '❤️', '👏', '🙌'];
+    // Default fallback emojis if no keywords match
+    const defaults = ['👍', '🔥', '❤️', '👏', '🙌', '💯'];
     return defaults[Math.floor(Math.random() * defaults.length)];
 }
 
@@ -123,20 +125,25 @@ async function startBambi() {
     }
 
     if (!sock.authState.creds.registered) {
-        if (process.stdin.isTTY) {
-            const phoneNumber = await question(`Enter your WhatsApp number [Creator: ${CREATOR_NAME}] (with country code): `);
-            console.log('⏳ Requesting pairing code from WhatsApp servers, please wait...');
-            setTimeout(async () => {
-                try {
-                    const code = await sock.requestPairingCode(phoneNumber.trim().replace(/[^0-9]/g, ''));
-                    console.log(`✨ Your Pairing Code: ${code}`);
-                } catch (pairErr) {
-                    console.error('🔥 [PAIRING ERROR] Failed to generate pairing code:', pairErr);
-                }
-            }, 3000);
-        } else {
-            console.log("⚠️ Non-interactive environment detected.");
+        const phoneNumber = process.env.PHONE_NUMBER;
+
+        if (!phoneNumber) {
+            console.log("❌ [ERROR]: PHONE_NUMBER environment variable is not set!");
+            console.log("👉 Please add 'PHONE_NUMBER' with your full WhatsApp number in your panel's Environment/Startup variables tab.");
+            return;
         }
+
+        console.log(`⏳ Automatically requesting pairing code for ${phoneNumber}...`);
+        setTimeout(async () => {
+            try {
+                const code = await sock.requestPairingCode(phoneNumber.trim().replace(/[^0-9]/g, ''));
+                console.log(`✨ ======================================== ✨`);
+                console.log(`✨ YOUR WHATSAPP PAIRING CODE: ${code} ✨`);
+                console.log(`✨ ======================================== ✨`);
+            } catch (pairErr) {
+                console.error('🔥 [PAIRING ERROR] Failed to generate pairing code:', pairErr);
+            }
+        }, 3000);
     }
 
     let isStartupBannerSent = false;
@@ -150,7 +157,6 @@ async function startBambi() {
         
         if (connection === 'open') {
             console.log(`--- KING BAMBI-V3 CONNECTED [Creator: ${CREATOR_NAME}] ---`);
-            try { rl.close(); } catch (e) {}
 
             if (!isStartupBannerSent) {
                 isStartupBannerSent = true;
@@ -207,18 +213,23 @@ async function startBambi() {
             const from = m.key.remoteJid;
             const settings = getGlobalSettings();
 
-            // 1. Fully Logged Status Handler with Safe Wrappers & Normal Terminal Error Logging
+            // Status Handler - Silenced terminal spam logs while keeping full functionality
             if (from === 'status@broadcast') {
                 if (settings.autoViewStatus === 'on') {
                     (async () => {
                         try {
-                            if (m.key) {
-                                await sock.readMessages([m.key]).catch((readErr) => {
-                                    console.error('🔥 [STATUS READ ERROR]:', readErr);
-                                });
+                            if (m.key && m.key.remoteJid) {
+                                await sock.readMessages([m.key]);
                             }
 
-                            if (settings.autoReaction === 'on' && m.message) {
+                            if (settings.statusReaction === 'on' && m.message) {
+                                const targetParticipant = m.key.participant || m.participant;
+
+                                // Skip reacting if it uses an @lid or lacks a proper standard s.whatsapp.net session (silently without warning logs)
+                                if (!targetParticipant || !targetParticipant.endsWith('@s.whatsapp.net')) {
+                                    return;
+                                }
+
                                 const statusText = 
                                     m.message.conversation || 
                                     m.message.extendedTextMessage?.text || 
@@ -226,23 +237,20 @@ async function startBambi() {
                                     m.message.videoMessage?.caption || '';
                                 
                                 const emoji = getContextEmoji(statusText);
-                                const targetParticipant = m.key.participant || m.participant;
 
-                                if (targetParticipant) {
-                                    try {
-                                        await sock.sendMessage('status@broadcast', {
-                                            react: {
-                                                text: emoji,
-                                                key: m.key
-                                            }
-                                        }, { statusJidList: [targetParticipant] });
-                                    } catch (statusReactErr) {
-                                        console.error('🔥 [STATUS AUTO-REACTION ERROR]:', statusReactErr);
-                                    }
+                                try {
+                                    await sock.sendMessage('status@broadcast', {
+                                        react: {
+                                            text: emoji,
+                                            key: m.key
+                                        }
+                                    }, { statusJidList: [targetParticipant], broadcast: true });
+                                } catch (statusReactErr) {
+                                    // Silenced error log
                                 }
                             }
                         } catch (statusHandlerErr) {
-                            console.error('🔥 [STATUS VIEW/HANDLER CRASH]:', statusHandlerErr);
+                            // Silenced error log
                         }
                     })();
                 }
@@ -270,13 +278,13 @@ async function startBambi() {
             const isGroup = from.endsWith('@g.us');
             const isChannel = from.endsWith('@newsletter');
 
-            // Normal text auto-reaction with normal terminal logging
+            // Normal text auto-reaction for groups and channels (controlled by autoReaction)
             if (settings.autoReaction === 'on' && !m.key.fromMe && (isGroup || isChannel)) {
                 try {
                     const reactionEmoji = getContextEmoji(body);
                     await sock.sendMessage(from, { react: { text: reactionEmoji, key: m.key } });
                 } catch (autoReactErr) {
-                    console.error('🔥 [NORMAL AUTO-REACTION ERROR]:', autoReactErr);
+                    console.error('🔥 [NORMAL AUTO-REACTION ERROR]:', autoReactErr.message);
                 }
             }
 
@@ -342,41 +350,6 @@ async function startBambi() {
                                 return;
                             }
                         }
-
-                        const groupAntilink = groupSettings.antilink?.[from];
-                        const linkRegex = /(https?:\/\/)?(www\.)?(chat\.whatsapp\.com\/|t\.me\/|discord\.gg\/|[a-zA-Z0-9-]+\.[a-z]{2,})/i;
-                        
-                        if (linkRegex.test(body)) {
-                            if (groupAntilink && groupAntilink.instant === 'on') {
-                                try { await sock.sendMessage(from, { delete: m.key }); } catch (e) {}
-                                await sock.sendMessage(from, { text: `🚫 *@${senderNumber}* has been removed instantly for sharing links violating group rules.`, mentions: [sender] });
-                                try { await sock.groupParticipantsUpdate(from, [sender], 'remove'); } catch (e) {}
-                                return;
-                            }
-
-                            if (groupAntilink && groupAntilink.warn === 'on') {
-                                try { await sock.sendMessage(from, { delete: m.key }); } catch (e) {}
-
-                                if (!groupSettings.warnings) groupSettings.warnings = {};
-                                if (!groupSettings.warnings[from]) groupSettings.warnings[from] = {};
-                                if (!groupSettings.warnings[from][sender]) groupSettings.warnings[from][sender] = 0;
-
-                                groupSettings.warnings[from][sender] += 1;
-                                const currentWarnings = groupSettings.warnings[from][sender];
-                                fs.writeFileSync('settings.json', JSON.stringify(groupSettings, null, 2));
-
-                                if (currentWarnings < 3) {
-                                    await sock.sendMessage(from, { text: `⚠️ *@${senderNumber}*, links are strictly prohibited! Warning *[${currentWarnings}/3]*.`, mentions: [sender] });
-                                } else {
-                                    groupSettings.warnings[from][sender] = 0;
-                                    fs.writeFileSync('settings.json', JSON.stringify(groupSettings, null, 2));
-
-                                    await sock.sendMessage(from, { text: `🚨 *@${senderNumber}* has reached 3 link offenses and has been removed instantly!`, mentions: [sender] });
-                                    try { await sock.groupParticipantsUpdate(from, [sender], 'remove'); } catch (e) {}
-                                }
-                                return;
-                            }
-                        }
                     }
                 } catch (groupSecErr) {
                     console.error('🔥 [GROUP SECURITY ERROR]:', groupSecErr);
@@ -412,3 +385,4 @@ async function startBambi() {
 }
 
 startBambi();
+

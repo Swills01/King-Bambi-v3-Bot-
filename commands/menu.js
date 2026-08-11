@@ -1,3 +1,4 @@
+
 const fs = require('fs');
 const path = require('path');
 const { getMode } = require('../utils/mode');
@@ -90,3 +91,4 @@ module.exports = {
         await sock.sendMessage(from, { text: menuText }, { quoted: m });
     }
 };
+

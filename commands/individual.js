@@ -1,3 +1,4 @@
+
 const CHANNEL_TEXT_LINK = '\n\n📢 *Join SWILLS TECH Channel:*\nhttps://whatsapp.com/channel/0029Vb8Pn4kEAKW6euGPfY2D';
 
 module.exports = {
@@ -15,6 +16,8 @@ module.exports = {
 `┃   _Description: Sends quoted view-once media directly to your DM._\n` +
 `┃ • *!viewstatus on/off*\n` +
 `┃   _Description: Toggle automatic WhatsApp status viewing (Creator Only)._\n` +
+`┃ • *!statusreactions on/off*\n` +
+`┃   _Description: Toggle automatic reactions for WhatsApp status updates (Creator/Bot Only)._\n` +
 `┃\n` +
 `┃ 🛠️ *GROUP CREATION*\n` +
 `┃ • *!creategroup <group name>*\n` +
@@ -39,3 +42,4 @@ module.exports = {
         await sock.sendMessage(from, { text: individualText }, { quoted: m });
     }
 };
+
