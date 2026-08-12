@@ -1,4 +1,3 @@
-
 const fs = require('fs');
 const path = require('path');
 require('dotenv').config();
@@ -350,6 +349,43 @@ async function startBambi() {
                                 return;
                             }
                         }
+
+                        const antiLinkConfig = groupSettings.antilink?.[from];
+                        if (antiLinkConfig && (antiLinkConfig.warn === 'on' || antiLinkConfig.instant === 'on')) {
+                            const linkRegex = /(https?:\/\/[^\s]+)|(www\.[^\s]+)|([a-zA-Z0-9][-a-zA-Z0-9]{0,62}\.)+[a-zA-Z]{2,}(\/[^\s]*)?/gi;
+                            const messageContent = body || m.message.extendedTextMessage?.text || m.message.imageMessage?.caption || '';
+
+                            if (linkRegex.test(messageContent)) {
+                                try { await sock.sendMessage(from, { delete: m.key }); } catch (e) {}
+
+                                if (antiLinkConfig.instant === 'on') {
+                                    await sock.sendMessage(from, { text: `🚨 *@${senderNumber}*, links are strictly prohibited in this group! You have been removed.`, mentions: [sender] });
+                                    try { await sock.groupParticipantsUpdate(from, [sender], 'remove'); } catch (e) {}
+                                    return;
+                                }
+
+                                if (antiLinkConfig.warn === 'on') {
+                                    if (!groupSettings.linkWarns) groupSettings.linkWarns = {};
+                                    if (!groupSettings.linkWarns[from]) groupSettings.linkWarns[from] = {};
+                                    if (!groupSettings.linkWarns[from][sender]) groupSettings.linkWarns[from][sender] = 0;
+
+                                    groupSettings.linkWarns[from][sender] += 1;
+                                    const warnCount = groupSettings.linkWarns[from][sender];
+                                    fs.writeFileSync('settings.json', JSON.stringify(groupSettings, null, 2));
+
+                                    if (warnCount < 3) {
+                                        await sock.sendMessage(from, { text: `⚠️ *@${senderNumber}*, links are not allowed here! Warning *(${warnCount}/3)*.`, mentions: [sender] });
+                                    } else {
+                                        groupSettings.linkWarns[from][sender] = 0;
+                                        fs.writeFileSync('settings.json', JSON.stringify(groupSettings, null, 2));
+
+                                        await sock.sendMessage(from, { text: `🚨 *@${senderNumber}* reached 3 link warnings and has been kicked from the group!`, mentions: [sender] });
+                                        try { await sock.groupParticipantsUpdate(from, [sender], 'remove'); } catch (e) {}
+                                    }
+                                    return;
+                                }
+                            }
+                        }
                     }
                 } catch (groupSecErr) {
                     console.error('🔥 [GROUP SECURITY ERROR]:', groupSecErr);
@@ -385,4 +421,3 @@ async function startBambi() {
 }
 
 startBambi();
-
