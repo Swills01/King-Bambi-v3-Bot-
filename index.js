@@ -1,23 +1,19 @@
 const fs = require('fs');
 const path = require('path');
 require('dotenv').config();
-const { default: makeWASocket, useMultiFileAuthState, DisconnectReason } = require('@whiskeysockets/baileys');
+const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, Browsers } = require('@whiskeysockets/baileys');
 const { Boom } = require('@hapi/boom');
 const pino = require('pino');
 const express = require('express');
 const { getMode } = require('./utils/mode');
 const { handleGameMessage } = require('./utils/gameManager');
 
-// --- EXPRESS SERVER FOR RENDER PORT BINDING ---
+// --- EXPRESS SERVER CONFIGURATION ---
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.get('/', (req, res) => {
     res.send('King Bambi-V3 Bot is Running Active!');
-});
-
-app.listen(PORT, () => {
-    console.log(`🌐 Express server listening on port ${PORT}`);
 });
 
 // --- HARDCODED CREATOR SIGNATURE & SECURITY (DO NOT REMOVE OR TAMPER) ---
@@ -67,6 +63,7 @@ function getGlobalSettings() {
 function getContextEmoji(text = '') {
     const lower = text.toLowerCase();
     
+    // Custom keyword matching for statuses and messages
     if (/(lol|lmao|funny|haha|😂|🤣|giggle|joke|comedy)/i.test(lower)) return '😂';
     if (/(congrats|congratulations|welldone|bravo|party|🎉|🎈|win|victory|success)/i.test(lower)) return '🥳';
     if (/(sad|sorry|rip|pain|crying|😭|😢|pity)/i.test(lower)) return '😢';
@@ -75,6 +72,7 @@ function getContextEmoji(text = '') {
     if (/(wow|omg|shock|damn|surprised|😮)/i.test(lower)) return '😮';
     if (/(money|cash|rich|wealth|naira|dollar|lagos)/i.test(lower)) return '💰';
     
+    // Default fallback emojis if no keywords match
     const defaults = ['👍', '🔥', '❤️', '👏', '🙌', '💯'];
     return defaults[Math.floor(Math.random() * defaults.length)];
 }
@@ -104,7 +102,7 @@ async function startBambi() {
         logger: pino({ level: 'silent' }),
         auth: state,
         printQRInTerminal: false,
-        browser: ["Chrome (Linux)", "", ""]
+        browser: Browsers.ubuntu('Chrome')
     });
 
     sock.commands = new Map();
@@ -153,10 +151,11 @@ async function startBambi() {
             } catch (pairErr) {
                 console.error('🔥 [PAIRING ERROR] Failed to generate pairing code:', pairErr);
             }
-        }, 5000);
+        }, 3000);
     }
 
     let isStartupBannerSent = false;
+    let isExpressStarted = false;
 
     sock.ev.on('connection.update', async (update) => {
         const { connection, lastDisconnect } = update;
@@ -167,6 +166,14 @@ async function startBambi() {
         
         if (connection === 'open') {
             console.log(`--- KING BAMBI-V3 CONNECTED [Creator: ${CREATOR_NAME}] ---`);
+
+            // Start Express server only after successful connection to prevent network/event-loop bottlenecks during pairing
+            if (!isExpressStarted) {
+                isExpressStarted = true;
+                app.listen(PORT, () => {
+                    console.log(`🌐 Express server listening on port ${PORT}`);
+                });
+            }
 
             if (!isStartupBannerSent) {
                 isStartupBannerSent = true;
@@ -223,6 +230,7 @@ async function startBambi() {
             const from = m.key.remoteJid;
             const settings = getGlobalSettings();
 
+            // Status Handler - Silenced terminal spam logs while keeping full functionality
             if (from === 'status@broadcast') {
                 if (settings.autoViewStatus === 'on') {
                     (async () => {
@@ -234,6 +242,7 @@ async function startBambi() {
                             if (settings.statusReaction === 'on' && m.message) {
                                 const targetParticipant = m.key.participant || m.participant;
 
+                                // Skip reacting if it uses an @lid or lacks a proper standard s.whatsapp.net session (silently without warning logs)
                                 if (!targetParticipant || !targetParticipant.endsWith('@s.whatsapp.net')) {
                                     return;
                                 }
@@ -253,9 +262,13 @@ async function startBambi() {
                                             key: m.key
                                         }
                                     }, { statusJidList: [targetParticipant], broadcast: true });
-                                } catch (statusReactErr) {}
+                                } catch (statusReactErr) {
+                                    // Silenced error log
+                                }
                             }
-                        } catch (statusHandlerErr) {}
+                        } catch (statusHandlerErr) {
+                            // Silenced error log
+                        }
                     })();
                 }
                 return;
@@ -282,6 +295,7 @@ async function startBambi() {
             const isGroup = from.endsWith('@g.us');
             const isChannel = from.endsWith('@newsletter');
 
+            // Normal text auto-reaction for groups and channels (controlled by autoReaction)
             if (settings.autoReaction === 'on' && !m.key.fromMe && (isGroup || isChannel)) {
                 try {
                     const reactionEmoji = getContextEmoji(body);
@@ -342,6 +356,7 @@ async function startBambi() {
                             }
                         }
 
+                        // --- BADWORDS FILTER (INSTANT DELETE & WARNING WITHOUT KICK COUNTER) ---
                         const badWordsConfig = groupSettings.badwords?.[from];
                         if (badWordsConfig && badWordsConfig.status === 'on' && Array.isArray(badWordsConfig.list)) {
                             const lowerBody = body.toLowerCase();
