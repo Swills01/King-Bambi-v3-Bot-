@@ -1,4 +1,3 @@
-
 const fs = require('fs');
 const path = require('path');
 const { getMode } = require('../utils/mode');
@@ -66,6 +65,7 @@ module.exports = {
 `┃ • *!calc <expr>* - Math solver\n` +
 `┃ • *!vcf* - Export all group contacts into a VCF contact file\n` +
 `┃ • *!repo* - View official GitHub repository link & source code\n` +
+`┃ • *!update* - Pull updates directly from official repository *(Creator/Bot Only)*\n` +
 `┃ • *!quote* / *!poll*\n` +
 `┃\n` +
 `┃ 🏓 *6. General Utilities*\n` +
@@ -91,4 +91,3 @@ module.exports = {
         await sock.sendMessage(from, { text: menuText }, { quoted: m });
     }
 };
-

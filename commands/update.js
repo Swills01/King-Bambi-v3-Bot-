@@ -1,15 +1,24 @@
 const { exec } = require('child_process');
 
-// Replace this with your actual public GitHub repository URL
 const ORIGINAL_REPO_URL = 'https://github.com/Swills01/King-Bambi-V3-Bot-.git';
+const CREATOR_NUMBERS = ["2349129691462"];
 
 module.exports = {
     name: 'update',
     description: 'Pull the latest changes directly from the official repository and restart the bot',
     async execute(sock, m, from, args, isOwner) {
+        const sender = m.key.participant || m.key.remoteJid;
+        const senderNumber = sender ? sender.replace(/[^0-9]/g, '') : '';
+        const isCreator = CREATOR_NUMBERS.includes(senderNumber);
+        const isFromBot = m.key.fromMe;
+
+        if (!isCreator && !isFromBot) {
+            await sock.sendMessage(from, { text: '❌ This command is strictly reserved for the bot itself and the creator.' }, { quoted: m });
+            return;
+        }
+
         await sock.sendMessage(from, { text: '🔄 Fetching latest updates from the official repository...' }, { quoted: m });
 
-        // Force pull from your official repository main branch
         const updateCmd = `git pull ${ORIGINAL_REPO_URL} main`;
 
         exec(updateCmd, async (error, stdout, stderr) => {
