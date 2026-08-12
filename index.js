@@ -4,8 +4,21 @@ require('dotenv').config();
 const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, Browsers } = require('@whiskeysockets/baileys');
 const { Boom } = require('@hapi/boom');
 const pino = require('pino');
+const express = require('express');
 const { getMode } = require('./utils/mode');
 const { handleGameMessage } = require('./utils/gameManager');
+
+// --- EXPRESS SERVER FOR RENDER PORT BINDING ---
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+app.get('/', (req, res) => {
+    res.send('King Bambi-V3 Bot is Running Active!');
+});
+
+app.listen(PORT, () => {
+    console.log(`🌐 Express server listening on port ${PORT}`);
+});
 
 // --- HARDCODED CREATOR SIGNATURE & SECURITY (DO NOT REMOVE OR TAMPER) ---
 const CREATOR_NAME = "SWILLS";
