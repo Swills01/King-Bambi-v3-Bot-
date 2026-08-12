@@ -351,6 +351,7 @@ async function startBambi() {
                             }
                         }
 
+                        // --- BADWORDS FILTER (INSTANT DELETE & WARNING WITHOUT KICK COUNTER) ---
                         const badWordsConfig = groupSettings.badwords?.[from];
                         if (badWordsConfig && badWordsConfig.status === 'on' && Array.isArray(badWordsConfig.list)) {
                             const lowerBody = body.toLowerCase();
@@ -358,7 +359,7 @@ async function startBambi() {
 
                             if (containsBadWord) {
                                 try { await sock.sendMessage(from, { delete: m.key }); } catch (e) {}
-                                await sock.sendMessage(from, { text: `⚠️ *@${senderNumber}*, watch your language! Profanity is prohibited in this group.`, mentions: [sender] });
+                                await sock.sendMessage(from, { text: `⚠️ *@${senderNumber}*, watch your language! Profanity is strictly prohibited in this group.`, mentions: [sender] });
                                 return;
                             }
                         }
