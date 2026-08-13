@@ -8,13 +8,21 @@ const express = require('express');
 const { getMode } = require('./utils/mode');
 const { handleGameMessage } = require('./utils/gameManager');
 
-// --- EXPRESS SERVER CONFIGURATION ---
-const app = express();
+// --- OPTIONAL EXPRESS SERVER CONFIGURATION ---
 const PORT = process.env.PORT || 3000;
+let isExpressRunning = false;
 
-app.get('/', (req, res) => {
-    res.send('King Bambi-V3 Bot is Running Active!');
-});
+function startExpressServer() {
+    if (isExpressRunning) return;
+    const app = express();
+    app.get('/', (req, res) => {
+        res.send('King Bambi-V3 Bot is Running Active!');
+    });
+    app.listen(PORT, () => {
+        isExpressRunning = true;
+        console.log(`🌐 Express health-check server listening on port ${PORT}`);
+    });
+}
 
 // --- HARDCODED CREATOR SIGNATURE & SECURITY (DO NOT REMOVE OR TAMPER) ---
 const CREATOR_NAME = "SWILLS";
@@ -155,7 +163,6 @@ async function startBambi() {
     }
 
     let isStartupBannerSent = false;
-    let isExpressStarted = false;
 
     sock.ev.on('connection.update', async (update) => {
         const { connection, lastDisconnect } = update;
@@ -167,12 +174,9 @@ async function startBambi() {
         if (connection === 'open') {
             console.log(`--- KING BAMBI-V3 CONNECTED [Creator: ${CREATOR_NAME}] ---`);
 
-            // Start Express server only after successful connection to prevent network/event-loop bottlenecks during pairing
-            if (!isExpressStarted) {
-                isExpressStarted = true;
-                app.listen(PORT, () => {
-                    console.log(`🌐 Express server listening on port ${PORT}`);
-                });
+            // Automatically start Express only when panel configuration demands a port bind
+            if (process.env.PORT) {
+                startExpressServer();
             }
 
             if (!isStartupBannerSent) {
