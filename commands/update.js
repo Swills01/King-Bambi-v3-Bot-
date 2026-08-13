@@ -38,7 +38,7 @@ module.exports = {
                 }
 
                 await sock.sendMessage(from, { 
-                    text: `✅ Update successful!\n\`\`\`${updateDetails}\`\`\`\n\n🔄 Restarting bot application...` 
+                    text: `✅ Update successful!\n\`\`\`${updateDetails}\`\`\`\n\n🔄 Restarting bot application...\n\n⚠️ *Notice:* Cloud session cleared. Go back to your hosting dashboard console right now to grab your new pairing code!` 
                 }, { quoted: m });
 
                 setTimeout(() => {
