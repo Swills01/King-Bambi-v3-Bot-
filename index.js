@@ -110,7 +110,9 @@ async function startBambi() {
         logger: pino({ level: 'silent' }),
         auth: state,
         printQRInTerminal: false,
-        browser: Browsers.ubuntu('Chrome')
+        browser: Browsers.macOS('Desktop'),
+        syncFullHistory: false,
+        markOnlineOnConnect: true
     });
 
     sock.commands = new Map();
