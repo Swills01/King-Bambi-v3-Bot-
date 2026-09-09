@@ -8,12 +8,14 @@ const express = require('express');
 const { getMode } = require('./utils/mode');
 const { handleGameMessage } = require('./utils/gameManager');
 
-// --- OPTIONAL EXPRESS SERVER CONFIGURATION ---
-const PORT = process.env.PORT || 3000;
+// --- CONDITIONAL CLOUD PORT SERVER CONFIGURATION ---
+const PORT = process.env.PORT;
 let isExpressRunning = false;
 
 function startExpressServer() {
+    if (!PORT) return; // Only runs on cloud platforms (like Render) where PORT is defined
     if (isExpressRunning) return;
+    
     const app = express();
     app.get('/', (req, res) => {
         res.send('King Bambi-V3 Bot is Running Active!');
@@ -175,11 +177,6 @@ async function startBambi() {
         
         if (connection === 'open') {
             console.log(`--- KING BAMBI-V3 CONNECTED [Creator: ${CREATOR_NAME}] ---`);
-
-            // Automatically start Express only when panel configuration demands a port bind
-            if (process.env.PORT) {
-                startExpressServer();
-            }
 
             if (!isStartupBannerSent) {
                 isStartupBannerSent = true;
@@ -445,4 +442,6 @@ async function startBambi() {
     });
 }
 
+// Start Express only if PORT is defined (Cloud platforms like Render), then start WhatsApp bot
+startExpressServer();
 startBambi();
